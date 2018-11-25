@@ -30,10 +30,10 @@ public class MainActivity extends AppCompatActivity {
     boolean countdownCounting = false;
     TextView CountDownView;
     Button startCountDown;
-    CountDownTimer mainCountDown;
 
     ScheduledThreadPoolExecutor mainExecutor;
-    ScheduledFuture<?> t;
+    ScheduledFuture<?> t1;
+    ScheduledFuture<?> t2;
 
 
     @Override
@@ -41,7 +41,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        mainExecutor = new ScheduledThreadPoolExecutor(1);
+        mainExecutor = new ScheduledThreadPoolExecutor(2);
 
         tempo = 120;
         mTempo = (TextView) findViewById(R.id.tempo);
@@ -56,13 +56,14 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 if (countdownCounting){
-                    mainCountDown.cancel();
+                    if (t2 != null){
+                        t2.cancel(false);
+                    }
                     startCountDown.setText("START");
                     countdownCounting = false;
-                } else{
-                    startCounting(mMinutes, mSeconds);
+                } else if (mMinutes > 0 || mSeconds > 0){
+                    startCounting();
                     startCountDown.setText("STOP");
-                    countdownCounting = true;
                 }
 
             }
@@ -91,8 +92,8 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 if (metronomePlaying){
-                    if (t != null){
-                        t.cancel(false);
+                    if (t1 != null){
+                        t1.cancel(false);
                     }
                     playMetronome.setText("PLAY");
                     metronomePlaying = false;
@@ -105,24 +106,12 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    public void startCounting(int minutes, int seconds){
-        mainCountDown = new CountDownTimer((minutes * 60 + seconds) * 1000, 1000) {
+    public void startCounting(){
+        if (t2 != null){
+            t2.cancel(false);
+        }
 
-            public void onTick(long millisUntilFinished) {
-
-                mMinutes = (int) TimeUnit.MILLISECONDS.toMinutes(millisUntilFinished);
-                mSeconds = (int) (TimeUnit.MILLISECONDS.toSeconds(millisUntilFinished) -
-                        TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(millisUntilFinished)));
-
-
-                CountDownView.setText(""+String.format("%d:%02d", mMinutes, mSeconds));
-            }
-
-            public void onFinish() {
-                startCountDown.setText("START");
-                countdownCounting = false;
-            }
-        }.start();
+        t2 = mainExecutor.scheduleAtFixedRate(new CountdownTask(), 0, 1, TimeUnit.SECONDS);
     }
 
     public void resetCountdown(View view){
@@ -161,12 +150,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void startMetronome() {
-        if (t != null){
-            t.cancel(false);
+        if (t1 != null){
+            t1.cancel(false);
         }
 
         if (tempo > 0){
-            t = mainExecutor.scheduleAtFixedRate(new MyTask(), 0, MILLIS_IN_MINUTE / tempo, TimeUnit.MILLISECONDS);
+            t1 = mainExecutor.scheduleAtFixedRate(new MetronomeTask(), 0, MILLIS_IN_MINUTE / tempo, TimeUnit.MILLISECONDS);
         }
 
 
@@ -211,7 +200,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    class MyTask implements Runnable {
+    class MetronomeTask implements Runnable {
 
         @Override
         public void run() {
@@ -227,5 +216,30 @@ public class MainActivity extends AppCompatActivity {
                 mp.release();
             };
         });
+    }
+
+    class CountdownTask implements Runnable {
+
+        @Override
+        public void run() {
+            countdownCounting = true;
+            countdown();
+
+            if (mSeconds == 0 && mMinutes == 0) {
+                startCountDown.setText("START");
+                countdownCounting = false;
+                t2.cancel(false);
+            }
+        }
+    }
+
+    private void countdown(){
+        if (mSeconds == 0){
+            mMinutes -= 1;
+            mSeconds = 59;
+        } else {
+            mSeconds -= 1;
+        }
+        CountDownView.setText(""+String.format("%d:%02d", mMinutes, mSeconds));
     }
 }
